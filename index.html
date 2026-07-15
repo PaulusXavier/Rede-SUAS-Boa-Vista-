@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Rede SUAS Boa Vista</title>
+<meta name="description" content="Localize o CRAS ou CREAS mais próximo em Boa Vista - RR">
+<meta name="theme-color" content="#123C5C">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rede SUAS">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+<style>
+  :root{
+    --deep-blue:#123C5C;
+    --deep-blue-dk:#0B2940;
+    --jungle:#2F7A5C;
+    --jungle-dk:#215940;
+    --equator:#F2994A;
+    --equator-dk:#D97F2E;
+    --creas-red:#C0524F;
+    --creas-red-dk:#9C3F3C;
+    --paper:#F1F5F4;
+    --card:#FFFFFF;
+    --ink:#16232B;
+    --ink-soft:#4C5B62;
+    --line:#DDE5E3;
+    --font-display: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; padding:0; height:100%; background:var(--paper); color:var(--ink); font-family:var(--font-body); overscroll-behavior:none;}
+  #app{position:fixed; inset:0; display:flex; flex-direction:column; overflow:hidden;}
+
+  /* ---------- Header ---------- */
+  header{
+    background: linear-gradient(135deg, var(--deep-blue) 0%, var(--deep-blue-dk) 100%);
+    color:#fff;
+    padding: calc(14px + var(--safe-top)) 18px 16px;
+    position:relative;
+    overflow:hidden;
+    flex-shrink:0;
+    z-index:5;
+  }
+  header .fan{
+    position:absolute; bottom:-40%; left:50%; transform:translateX(-50%);
+    width:220%; height:140px; pointer-events:none; opacity:0.16;
+  }
+  header .fan svg{width:100%; height:100%;}
+  header .htop{display:flex; align-items:center; justify-content:space-between; position:relative; z-index:2;}
+  header h1{font-family:var(--font-display); font-size:20px; margin:0; font-weight:700; letter-spacing:0.2px;}
+  header .sub{font-size:12.5px; opacity:0.82; margin-top:3px; position:relative; z-index:2;}
+  .badge-live{
+    display:inline-flex; align-items:center; gap:5px; font-size:10.5px; background:rgba(255,255,255,0.14);
+    border:1px solid rgba(255,255,255,0.25); padding:4px 9px; border-radius:20px; font-family:var(--font-mono);
+  }
+  .badge-live .dot{width:6px; height:6px; border-radius:50%; background:var(--equator); animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:0.3;}}
+
+  /* ---------- Search bar ---------- */
+  .searchwrap{padding:12px 16px 0; flex-shrink:0; background:var(--paper); position:relative; z-index:4;}
+  .searchbox{
+    display:flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line);
+    border-radius:14px; padding:11px 14px; box-shadow:0 2px 10px rgba(18,60,92,0.06);
+  }
+  .searchbox svg{flex-shrink:0; color:var(--ink-soft);}
+  .searchbox input{
+    border:none; outline:none; flex:1; font-size:15px; font-family:var(--font-body); color:var(--ink); background:transparent;
+  }
+  .searchbox input::placeholder{color:#96A3A8;}
+  .clearbtn{display:none; border:none; background:var(--paper); color:var(--ink-soft); width:22px; height:22px; border-radius:50%; font-size:14px; align-items:center; justify-content:center; cursor:pointer;}
+
+  .suggest{
+    position:absolute; left:16px; right:16px; top:64px; background:var(--card); border:1px solid var(--line);
+    border-radius:14px; box-shadow:0 10px 26px rgba(18,60,92,0.15); max-height:52vh; overflow-y:auto; display:none; z-index:10;
+  }
+  .suggest.show{display:block;}
+  .suggest .sgroup{font-size:10.5px; text-transform:uppercase; letter-spacing:0.6px; color:var(--ink-soft); padding:10px 14px 4px; font-family:var(--font-mono);}
+  .suggest .sitem{padding:10px 14px; display:flex; align-items:center; gap:10px; cursor:pointer; border-top:1px solid var(--line);}
+  .suggest .sitem:first-of-type, .suggest .sgroup + .sitem{border-top:none;}
+  .suggest .sitem:active{background:var(--paper);}
+  .sitem .dotc{width:9px; height:9px; border-radius:50%; flex-shrink:0;}
+  .sitem .stext b{display:block; font-size:14px;}
+  .sitem .stext span{display:block; font-size:11.5px; color:var(--ink-soft);}
+
+  /* ---------- Tabs content ---------- */
+  main{flex:1; min-height:0; position:relative;}
+  .view{position:absolute; inset:0; display:none; overflow-y:auto; -webkit-overflow-scrolling:touch;}
+  .view.active{display:block;}
+
+  /* Map view */
+  #view-map{overflow:hidden;}
+  #map{position:absolute; inset:0;}
+  .maplayers{
+    position:absolute; top:12px; left:16px; z-index:400; display:flex; gap:8px;
+  }
+  .chip{
+    background:rgba(255,255,255,0.96); border:1px solid var(--line); border-radius:20px; padding:8px 14px;
+    font-size:12.5px; font-weight:600; display:flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(0,0,0,0.12);
+    cursor:pointer; color:var(--ink-soft); backdrop-filter: blur(4px);
+  }
+  .chip .sw{width:9px; height:9px; border-radius:50%;}
+  .chip.on.cras{background:var(--jungle); color:#fff; border-color:var(--jungle-dk);}
+  .chip.on.creas{background:var(--creas-red); color:#fff; border-color:var(--creas-red-dk);}
+  .chip.on .sw{background:#fff;}
+  .chip:not(.on) .sw.cras-sw{background:var(--jungle);}
+  .chip:not(.on) .sw.creas-sw{background:var(--creas-red);}
+  .locbtn{
+    position:absolute; bottom:22px; right:16px; z-index:400; width:46px; height:46px; border-radius:50%;
+    background:var(--card); border:1px solid var(--line); box-shadow:0 4px 14px rgba(0,0,0,0.18);
+    display:flex; align-items:center; justify-content:center; color:var(--deep-blue); cursor:pointer;
+  }
+
+  /* List view */
+  #view-list{padding:14px 16px calc(90px + var(--safe-bottom));}
+  .sectiontitle{
+    font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:0.8px; color:var(--ink-soft);
+    margin:20px 2px 10px; display:flex; align-items:center; gap:8px;
+  }
+  .sectiontitle:first-child{margin-top:4px;}
+  .sectiontitle .line{flex:1; height:1px; background:var(--line);}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:12px;
+    box-shadow:0 2px 8px rgba(18,60,92,0.05); position:relative; overflow:hidden;
+  }
+  .card .stripe{position:absolute; left:0; top:0; bottom:0; width:5px;}
+  .card .ctop{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;}
+  .card h3{font-family:var(--font-display); font-size:17px; margin:0; line-height:1.25;}
+  .card .kind{
+    font-family:var(--font-mono); font-size:9.5px; text-transform:uppercase; letter-spacing:0.6px; padding:3px 8px;
+    border-radius:6px; flex-shrink:0; margin-top:2px; white-space:nowrap;
+  }
+  .kind.cras{background:#E4F1EA; color:var(--jungle-dk);}
+  .kind.creas{background:#F6E5E4; color:var(--creas-red-dk);}
+  .card .row{display:flex; align-items:flex-start; gap:8px; font-size:13.5px; color:var(--ink-soft); margin-top:6px; line-height:1.4;}
+  .card .row svg{flex-shrink:0; margin-top:1px;}
+  .card .row a{color:inherit; text-decoration:none;}
+  .card .actions{display:flex; gap:8px; margin-top:12px;}
+  .actionbtn{
+    flex:1; text-align:center; padding:9px 8px; border-radius:10px; font-size:12.5px; font-weight:600;
+    text-decoration:none; display:flex; align-items:center; justify-content:center; gap:5px; border:1px solid var(--line); color:var(--ink);
+  }
+  .actionbtn.primary{background:var(--deep-blue); color:#fff; border-color:var(--deep-blue);}
+  .toggle-bairros{
+    margin-top:10px; font-size:12.5px; color:var(--deep-blue); font-weight:600; cursor:pointer; display:flex; align-items:center; gap:4px;
+  }
+  .bairros-list{
+    display:none; margin-top:8px; padding-top:10px; border-top:1px dashed var(--line);
+    font-size:12.5px; color:var(--ink-soft); line-height:1.6;
+  }
+  .bairros-list.show{display:block;}
+  .bairro-tag{display:inline-block; background:var(--paper); padding:2px 8px; border-radius:6px; margin:0 4px 4px 0;}
+
+  /* Info view */
+  #view-info{padding:18px 18px calc(90px + var(--safe-bottom));}
+  .infocard{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px; margin-bottom:14px;}
+  .infocard h2{font-family:var(--font-display); font-size:17px; margin:0 0 8px;}
+  .infocard p{font-size:14px; color:var(--ink-soft); line-height:1.6; margin:0 0 10px;}
+  .infocard a.linkbtn{
+    display:inline-flex; align-items:center; gap:6px; background:var(--equator); color:#fff; font-weight:700;
+    padding:11px 18px; border-radius:11px; text-decoration:none; font-size:14px; margin-top:4px;
+  }
+  .distinguish{display:flex; gap:10px; margin-top:4px;}
+  .distinguish .col{flex:1; padding:12px; border-radius:12px;}
+  .distinguish .col.g{background:#E4F1EA;}
+  .distinguish .col.r{background:#F6E5E4;}
+  .distinguish .col b{display:block; font-size:13px; margin-bottom:4px;}
+  .distinguish .col span{font-size:12px; color:var(--ink-soft); line-height:1.45; display:block;}
+
+  /* Bottom nav */
+  nav.tabbar{
+    flex-shrink:0; display:flex; background:var(--card); border-top:1px solid var(--line);
+    padding-bottom:var(--safe-bottom); position:relative; z-index:20;
+  }
+  nav.tabbar button{
+    flex:1; border:none; background:none; padding:10px 4px 8px; display:flex; flex-direction:column; align-items:center; gap:3px;
+    color:#9BA8AD; font-family:var(--font-body); font-size:10.5px; font-weight:600; cursor:pointer;
+  }
+  nav.tabbar button.active{color:var(--deep-blue);}
+  nav.tabbar button svg{width:22px; height:22px;}
+
+  /* leaflet popup tweaks */
+  .leaflet-popup-content-wrapper{border-radius:14px;}
+  .leaflet-popup-content{font-family:var(--font-body); margin:12px 14px;}
+  .leaflet-popup-content-wrapper{max-height:260px; overflow-y:auto;}
+  .popname{font-family:var(--font-display); font-weight:700; font-size:14.5px; margin-bottom:4px;}
+  .popaddr{font-size:12px; color:var(--ink-soft); margin-bottom:3px;}
+  .poptel{font-family:var(--font-mono); font-size:12px; color:var(--deep-blue);}
+  .popareatitle{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; color:var(--ink-soft); margin-top:10px; padding-top:8px; border-top:1px dashed var(--line);}
+  .popareas{margin-top:6px; line-height:1.7;}
+  .poptag{display:inline-block; background:var(--paper); color:var(--ink); font-size:11px; padding:2px 7px; border-radius:6px; margin:0 4px 4px 0;}
+  .popdesc{font-size:12px; color:var(--ink-soft); margin-top:5px; line-height:1.45;}
+
+  ::-webkit-scrollbar{display:none;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div class="fan">
+      <svg viewBox="0 0 400 140" preserveAspectRatio="none">
+        <g stroke="#fff" stroke-width="1" fill="none">
+          <line x1="200" y1="140" x2="10" y2="0"/><line x1="200" y1="140" x2="55" y2="0"/>
+          <line x1="200" y1="140" x2="100" y2="0"/><line x1="200" y1="140" x2="145" y2="0"/>
+          <line x1="200" y1="140" x2="200" y2="0"/><line x1="200" y1="140" x2="255" y2="0"/>
+          <line x1="200" y1="140" x2="300" y2="0"/><line x1="200" y1="140" x2="345" y2="0"/>
+          <line x1="200" y1="140" x2="390" y2="0"/>
+        </g>
+      </svg>
+    </div>
+    <div class="htop">
+      <div>
+        <h1>Rede SUAS Boa Vista</h1>
+        <div class="sub">Assistência Social perto de você</div>
+      </div>
+      <div class="badge-live"><span class="dot"></span>11 unidades</div>
+    </div>
+  </header>
+
+  <div class="searchwrap">
+    <div class="searchbox">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="searchInput" type="text" placeholder="Busque seu bairro ou uma unidade..." autocomplete="off">
+      <button class="clearbtn" id="clearBtn">✕</button>
+    </div>
+    <div class="suggest" id="suggestBox"></div>
+  </div>
+
+  <main>
+    <section class="view active" id="view-map">
+      <div id="map"></div>
+      <div class="maplayers">
+        <div class="chip on cras" id="chipCras"><span class="sw cras-sw"></span>CRAS</div>
+        <div class="chip on creas" id="chipCreas"><span class="sw creas-sw"></span>CREAS</div>
+      </div>
+      <div class="locbtn" id="locBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      </div>
+    </section>
+
+    <section class="view" id="view-list"></section>
+
+    <section class="view" id="view-info">
+      <div class="infocard">
+        <h2>Qual a diferença entre CRAS e CREAS?</h2>
+        <div class="distinguish">
+          <div class="col g">
+            <b>🏠 CRAS</b>
+            <span>Proteção Social Básica. Atendimento preventivo por bairro: cadastro único, Bolsa Família, grupos e benefícios.</span>
+          </div>
+          <div class="col r">
+            <b>🛡️ CREAS</b>
+            <span>Proteção Social Especial. Atendimento a famílias e indivíduos em situação de risco ou violação de direitos.</span>
+          </div>
+        </div>
+      </div>
+      <div class="infocard">
+        <h2>Cadastro Único (CadÚnico)</h2>
+        <p>Consulte seus dados no Cadastro Único, usado para acesso a programas sociais do Governo Federal.</p>
+        <a class="linkbtn" href="https://www.gov.br/pt-br/servicos/consultar-dados-do-cadastro-unico-cadunico" target="_blank" rel="noopener">
+          Consultar meus dados
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 17L17 7M7 7h10v10"/></svg>
+        </a>
+      </div>
+      <div class="infocard">
+        <h2>Sobre este aplicativo</h2>
+        <p>Reúne em um só lugar os endereços, telefones e áreas de abrangência de todos os CRAS e CREAS de Boa Vista - RR, para facilitar o acesso da população à Assistência Social.</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button class="active" data-view="map">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 20l-6-3V4l6 3 6-3 6 3v13l-6-3-6 3z"/><path d="M9 4v13M15 7v13"/></svg>
+      Mapa
+    </button>
+    <button data-view="list">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Unidades
+    </button>
+    <button data-view="info">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      Info
+    </button>
+  </nav>
+
+</div>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
