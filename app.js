@@ -11,10 +11,18 @@ function hexFor(kind, color){
 }
 
 // ---------- Build flat list of all units with kind ----------
-const ALL_UNITS = [
-  ...UNITS.cras.map(u => ({...u, kind:'cras'})),
-  ...UNITS.creas.map(u => ({...u, kind:'creas'}))
-];
+// Executado com verificação de segurança caso o data.js demore a carregar
+let ALL_UNITS = [];
+try {
+  if (typeof UNITS !== 'undefined') {
+    ALL_UNITS = [
+      ...UNITS.cras.map(u => ({...u, kind:'cras'})),
+      ...UNITS.creas.map(u => ({...u, kind:'creas'}))
+    ];
+  }
+} catch (e) {
+  console.warn("Aguardando carregamento de UNITS para gerar lista plana.");
+}
 
 // ---------- Map setup ----------
 let map, crasLayer, creasLayer, userMarker;
@@ -29,8 +37,10 @@ function initMap(){
   crasLayer = L.layerGroup();
   creasLayer = L.layerGroup();
 
-  UNITS.cras.forEach(u => addMarker(u, 'cras', crasLayer));
-  UNITS.creas.forEach(u => addMarker(u, 'creas', creasLayer));
+  if (typeof UNITS !== 'undefined') {
+    UNITS.cras.forEach(u => addMarker(u, 'cras', crasLayer));
+    UNITS.creas.forEach(u => addMarker(u, 'creas', creasLayer));
+  }
 
   crasLayer.addTo(map);
   creasLayer.addTo(map);
@@ -110,6 +120,8 @@ document.getElementById('locBtn').addEventListener('click', () => {
 // ---------- List view ----------
 function renderList(){
   const el = document.getElementById('view-list');
+  if (!el || typeof UNITS === 'undefined') return;
+  
   let html = '';
 
   html += `<div class="sectiontitle"><span>CRAS &mdash; Proteção Básica</span><span class="line"></span></div>`;
@@ -203,18 +215,51 @@ const searchInput = document.getElementById('searchInput');
 const suggestBox = document.getElementById('suggestBox');
 const clearBtn = document.getElementById('clearBtn');
 
+let SEARCH_INDEX = [];
+
 function buildSearchIndex(){
   const idx = [];
-  ALL_UNITS.forEach(u => {
-    idx.push({ type:'unit', kind:u.kind, name:u.name, sub:u.address, unit:u });
-    const bairros = u.kind === 'cras' ? u.bairros_list : u.area_list;
-    if(bairros) bairros.forEach(b => idx.push({ type:'bairro', kind:u.kind, name:b, sub:`Atendido por ${u.name}`, unit:u }));
-  });
+  if (typeof UNITS === 'undefined') {
+    console.warn("Aguardando carregamento de 'UNITS'...");
+    return idx;
+  }
+
+  // Mapeia os CRAS
+  if (UNITS.cras) {
+    UNITS.cras.forEach(u => {
+      idx.push({ type:'unit', kind:'cras', name:u.name, sub:u.address, unit:u });
+      if (u.bairros_list) {
+        u.bairros_list.forEach(b => {
+          idx.push({ type:'bairro', kind:'cras', name:b, sub:`Atendido por ${u.name}`, unit:u });
+        });
+      }
+    });
+  }
+
+  // Mapeia os CREAS
+  if (UNITS.creas) {
+    UNITS.creas.forEach(u => {
+      idx.push({ type:'unit', kind:'creas', name:u.name, sub:u.address, unit:u });
+      if (u.area_list) {
+        u.area_list.forEach(b => {
+          idx.push({ type:'bairro', kind:'creas', name:b, sub:`Atendido por ${u.name}`, unit:u });
+        });
+      }
+    });
+  }
+
   return idx;
 }
-const SEARCH_INDEX = buildSearchIndex();
+
+// Inicialização segura do índice de pesquisa
+try {
+  SEARCH_INDEX = buildSearchIndex();
+} catch(e) {
+  console.error("Falha ao construir o índice inicial:", e);
+}
 
 function normalize(s){
+  if (!s) return '';
   return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 }
 
@@ -222,19 +267,32 @@ searchInput.addEventListener('input', () => {
   const q = searchInput.value.trim();
   clearBtn.style.display = q ? 'flex' : 'none';
   if(!q){ closeSuggest(); return; }
+
+  // Garante a construção do índice se ainda estiver vazio
+  if(SEARCH_INDEX.length === 0) {
+    SEARCH_INDEX = buildSearchIndex();
+  }
+
   const nq = normalize(q);
   const results = SEARCH_INDEX.filter(r => normalize(r.name).includes(nq)).slice(0, 8);
   renderSuggest(results, q);
 });
+
 searchInput.addEventListener('focus', () => {
   if(searchInput.value.trim()) suggestBox.classList.add('show');
 });
+
 clearBtn.addEventListener('click', () => {
-  searchInput.value = ''; clearBtn.style.display = 'none'; closeSuggest(); searchInput.focus();
+  searchInput.value = ''; 
+  clearBtn.style.display = 'none'; 
+  closeSuggest(); 
+  searchInput.focus();
 });
+
 document.addEventListener('click', (e) => {
   if(!e.target.closest('.searchwrap')) closeSuggest();
 });
+
 function closeSuggest(){ suggestBox.classList.remove('show'); }
 
 function renderSuggest(results, q){
@@ -243,23 +301,40 @@ function renderSuggest(results, q){
     suggestBox.classList.add('show');
     return;
   }
-  suggestBox.innerHTML = results.map(r => {
+
+  // Atribui um 'data-index' específico para sabermos precisamente qual item foi clicado
+  suggestBox.innerHTML = results.map((r, index) => {
     const hex = hexFor(r.kind, r.unit.color);
     const tag = r.type === 'bairro' ? '🏘️' : (r.kind === 'cras' ? '🏠' : '🛡️');
-    return `<div class="sitem" data-name="${r.unit.name}" data-kind="${r.kind}">
-      <span class="dotc" style="background:${hex}"></span>
-      <div class="stext"><b>${tag} ${r.name}</b><span>${r.sub}</span></div>
-    </div>`;
+    return `
+      <div class="sitem" data-index="${index}">
+        <span class="dotc" style="background:${hex}"></span>
+        <div class="stext">
+          <b>${tag} ${r.name}</b>
+          <span>${r.sub}</span>
+        </div>
+      </div>`;
   }).join('');
+
   suggestBox.classList.add('show');
-  suggestBox.querySelectorAll('.sitem').forEach((el, i) => {
+
+  // Adiciona o escutador de eventos de clique nos novos elementos renderizados
+  suggestBox.querySelectorAll('.sitem').forEach(el => {
     el.addEventListener('click', () => {
-      const r = results[i];
-      searchInput.value = r.name;
-      closeSuggest();
-      const list = r.kind === 'cras' ? UNITS.cras : UNITS.creas;
-      const idx = list.findIndex(x => x.name === r.unit.name);
-      showOnMap(r.kind, idx);
+      const idxResult = parseInt(el.getAttribute('data-index'), 10);
+      const r = results[idxResult];
+      
+      if (r && r.unit) {
+        searchInput.value = r.name;
+        closeSuggest();
+
+        const list = r.kind === 'cras' ? UNITS.cras : UNITS.creas;
+        const targetIndex = list.findIndex(x => x.name === r.unit.name);
+
+        if (targetIndex !== -1) {
+          showOnMap(r.kind, targetIndex);
+        }
+      }
     });
   });
 }
