@@ -13,59 +13,54 @@ let activeFilters = { cras: true, creas: true };
 
 // ---------- 1. Inicialização do Mapa ----------
 function initMap() {
-  // Coordenadas centrais de Boa Vista - RR
   const defaultCenter = [2.8197, -60.6732]; 
   const defaultZoom = 13;
 
-  // Criação do mapa Leaflet sincronizado com a div #map do HTML
   map = L.map('map', {
-    zoomControl: false // Desabilitado por padrão para controle manual se preferido
+    zoomControl: false 
   }).setView(defaultCenter, defaultZoom);
 
-  // Adicionando camada de mapa (OpenStreetMap)
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '© OpenStreetMap contributors'
   }).addTo(map);
 
-  // Adiciona o controle de zoom no canto superior direito para não atrapalhar os botões
   L.control.zoom({ position: 'topright' }).addTo(map);
 
-  // Cria o grupo de marcadores para gerenciar pins na tela com facilidade
   markersGroup = L.layerGroup().addTo(map);
 
-  // Atualiza os marcadores no mapa e gera a lista lateral de unidades
+  // Carrega e desenha o mapa
   updateMapAndList();
 }
 
-// ---------- 2. Normalização de Texto (Garante busca sem falhas por acentos) ----------
+// ---------- 2. Normalização Avançada de Texto (Melhora muito a busca) ----------
 function normalizarTexto(texto) {
   if (!texto) return '';
   return texto
     .toString()
     .toLowerCase()
-    .normalize('NFD') // Divide caracteres especiais (ex: "ã" vira "a" + "~")
-    .replace(/[\u0300-\u036f]/g, '') // Remove os acentos e rabiscos
+    .normalize('NFD') 
+    .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+    .replace(/[^a-z0-9\s]/g, '') // Remove pontuação e caracteres especiais
+    .replace(/\s+/g, ' ') // Remove espaços duplicados
     .trim();
 }
 
-// ---------- 3. Construção do Índice de Busca Inteligente ----------
+// ---------- 3. Construção do Índice de Busca Integrado ----------
 function buildSearchIndex() {
   const index = [];
 
   if (typeof UNITS === 'undefined') {
-    console.error("ERRO: O arquivo 'data.js' não foi carregado ou a variável 'UNITS' está ausente.");
+    console.error("ERRO: O arquivo 'data.js' não foi carregado corretamente.");
     return [];
   }
 
-  // Mapeamento das Unidades de CRAS
+  // Processa CRAS
   if (UNITS.cras) {
     UNITS.cras.forEach(unit => {
-      // Indexa o próprio nome do CRAS e o endereço
       index.push({ text: normalizarTexto(unit.name), unit: unit, type: 'cras', matchType: 'Unidade' });
       index.push({ text: normalizarTexto(unit.address), unit: unit, type: 'cras', matchType: 'Endereço' });
 
-      // Indexa individualmente cada bairro atendido por esta unidade
       if (Array.isArray(unit.bairros_list)) {
         unit.bairros_list.forEach(bairro => {
           index.push({
@@ -80,7 +75,7 @@ function buildSearchIndex() {
     });
   }
 
-  // Mapeamento das Unidades de CREAS (e outros itens inclusos nesta lista)
+  // Processa CREAS
   if (UNITS.creas) {
     UNITS.creas.forEach(unit => {
       index.push({ text: normalizarTexto(unit.name), unit: unit, type: 'creas', matchType: 'Unidade' });
@@ -103,7 +98,7 @@ function buildSearchIndex() {
   return index;
 }
 
-// ---------- 4. Mecanismo de Busca e Sugestões ----------
+// ---------- 4. Mecanismo de Busca Corrigido ----------
 function realizarBusca(termoDigitado) {
   const suggestBox = document.getElementById('suggestBox');
   const clearBtn = document.getElementById('clearBtn');
@@ -112,27 +107,23 @@ function realizarBusca(termoDigitado) {
 
   const termoLimpo = normalizarTexto(termoDigitado);
 
-  // Exibe ou esconde o botão de limpar campo (✕)
   if (clearBtn) {
-    clearBtn.style.display = termoDigitado.length > 0 ? 'flex' : 'none';
+    clearBtn.style.display = termoDigitado.trim().length > 0 ? 'flex' : 'none';
   }
 
-  // Se o usuário digitou menos que 2 letras, oculta a caixinha
   if (termoLimpo.length < 2) {
     suggestBox.classList.remove('show');
     suggestBox.innerHTML = '';
     return;
   }
 
-  // Procura correspondência no índice de busca
+  // Varre o índice por correspondência parcial
   const correspondencias = SEARCH_INDEX.filter(item => item.text.includes(termoLimpo));
 
-  // Remove repetições visuais da mesma unidade física
   const resultadosUnicos = [];
   const cacheIds = new Set();
 
   correspondencias.forEach(item => {
-    // Cria uma chave única baseada no nome e no contexto encontrado para evitar redundância
     const chaveUnica = `${item.unit.name}-${item.matchType === 'Unidade' ? 'unidade' : item.originalName || ''}`;
     if (!cacheIds.has(chaveUnica)) {
       cacheIds.add(chaveUnica);
@@ -145,11 +136,10 @@ function realizarBusca(termoDigitado) {
     }
   });
 
-  // Renderiza até as 6 melhores sugestões para não travar a rolagem
   renderSugestoes(resultadosUnicos.slice(0, 6));
 }
 
-// ---------- 5. Renderizando as Sugestões Dinâmicas ----------
+// ---------- 5. Renderizando as Sugestões com Design Limpo ----------
 function renderSugestoes(lista) {
   const suggestBox = document.getElementById('suggestBox');
   if (!suggestBox) return;
@@ -162,31 +152,28 @@ function renderSugestoes(lista) {
 
   suggestBox.innerHTML = '';
 
-  // Agrupa cabeçalhos visuais se desejar, ou renderiza como itens diretos
   lista.forEach(item => {
     const sitem = document.createElement('div');
     sitem.className = 'sitem';
 
-    // Determina a cor da bolinha indicadora da sugestão
-    const corIndicador = item.unit.color === 'blue' ? 'var(--deep-blue)' : item.unit.color;
+    // Cores fiéis aos equipamentos
+    const corIndicador = item.type === 'cras' ? 'var(--jungle, #27ae60)' : 'var(--creas-red, #e74c3c)';
 
     sitem.innerHTML = `
-      <div class="dotc" style="background-color: ${corIndicador || 'var(--jungle)'}"></div>
+      <div class="dotc" style="background-color: ${corIndicador}"></div>
       <div class="stext">
         <b>${item.matchedText}</b>
         <span>${item.unit.name} • ${item.matchType}</span>
       </div>
     `;
 
-    // Ação ao clicar na sugestão da lista
     sitem.addEventListener('click', () => {
-      // Garante que o app mude para a aba do mapa se estiver em outra
       trocarAba('map');
-      
-      // Centraliza e expande as informações
       focarUnidade(item.unit);
       
-      document.getElementById('searchInput').value = item.matchedText;
+      const searchInput = document.getElementById('searchInput');
+      if (searchInput) searchInput.value = item.matchedText;
+      
       suggestBox.classList.remove('show');
     });
 
@@ -200,27 +187,24 @@ function renderSugestoes(lista) {
 function focarUnidade(unit) {
   if (!map) return;
 
-  // Fecha popups ativos antes de abrir o novo
   map.closePopup();
 
-  // Voa elegantemente até o local desejado
   map.flyTo([unit.lat, unit.lng], 16, {
     animate: true,
     duration: 1.2
   });
 
-  // Dispara o Popup do marcador correspondente logo após o final do voo
   setTimeout(() => {
     markersGroup.eachLayer(marker => {
       const latLng = marker.getLatLng();
-      if (latLng.lat === unit.lat && latLng.lng === unit.lng) {
+      if (Math.abs(latLng.lat - unit.lat) < 0.0001 && Math.abs(latLng.lng - unit.lng) < 0.0001) {
         marker.openPopup();
       }
     });
   }, 1300);
 }
 
-// ---------- 7. Renderizar Pins e Listagem Lateral de Unidades ----------
+// ---------- 7. Renderizar Pins de Google Maps e Listagem ----------
 function updateMapAndList() {
   if (!markersGroup) return;
   markersGroup.clearLayers();
@@ -237,20 +221,34 @@ function updateMapAndList() {
     UNITS.creas.forEach(u => unidadesParaMostrar.push({ ...u, kind: 'creas' }));
   }
 
-  // 1. Geração de Marcadores (Pins) no Mapa
   unidadesParaMostrar.forEach(unit => {
-    // Determina a cor visual baseada no serviço
-    const mapPinColor = unit.kind === 'cras' ? 'var(--jungle)' : 'var(--creas-red)';
+    // Cores idênticas aos pinos do Google Maps
+    const pinColor = unit.kind === 'cras' ? '#0f9d58' : '#db4437'; // Verde Google e Vermelho Google
+
+    // HTML do pino no estilo Google Maps (gota invertida estilizada com ícone svg)
+    const googlePinHTML = `
+      <div class="google-maps-pin" style="position: relative; width: 34px; height: 44px; filter: drop-shadow(0px 3px 4px rgba(0,0,0,0.35));">
+        <!-- Parte triangular inferior -->
+        <div style="position: absolute; bottom: 0; left: 12px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 10px solid ${pinColor};"></div>
+        <!-- Círculo principal -->
+        <div style="position: absolute; top: 0; left: 0; width: 34px; height: 34px; background-color: ${pinColor}; border-radius: 50% 50% 50% 50%; display: flex; align-items: center; justify-content: center;">
+          <!-- Ícone branco no meio (Home / Prédio Público) -->
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+        </div>
+      </div>
+    `;
 
     const customIcon = L.divIcon({
-      className: 'custom-marker',
-      html: `<div class="marker-pin" style="background-color: ${mapPinColor}; width:16px; height:16px; border-radius:50%; border:3px solid #fff; box-shadow:0 0 5px rgba(0,0,0,0.4)"></div>`,
-      iconSize: [20, 20],
-      iconAnchor: [10, 10],
-      popupAnchor: [0, -10]
+      className: 'google-custom-marker',
+      html: googlePinHTML,
+      iconSize: [34, 44],
+      iconAnchor: [17, 44], // Fixa a ponta inferior da gota exatamente na coordenada geográfica
+      popupAnchor: [0, -40]
     });
 
-    // Cria as tags estruturadas de abrangência do popup
     let listagemDeBairrosHTML = '';
     if (unit.kind === 'cras' && Array.isArray(unit.bairros_list)) {
       listagemDeBairrosHTML = unit.bairros_list.map(b => `<span class="poptag">${b}</span>`).join('');
@@ -267,7 +265,6 @@ function updateMapAndList() {
           <div class="popareatitle">Área de Cobertura</div>
           <div class="popareas">${listagemDeBairrosHTML}</div>
         ` : ''}
-        ${unit.desc ? `<div class="popdesc"><i>${unit.desc}</i></div>` : ''}
       </div>
     `;
 
@@ -275,11 +272,11 @@ function updateMapAndList() {
       .bindPopup(popupContent)
       .addTo(markersGroup);
 
-    // 2. Geração dos Cards Dinâmicos na aba "Unidades"
+    // Renderiza nos Cards da aba Unidades
     if (containerLista) {
       const card = document.createElement('div');
       card.className = 'card';
-      const stripeColor = unit.kind === 'cras' ? 'var(--jungle)' : 'var(--creas-red)';
+      const stripeColor = unit.kind === 'cras' ? '#0f9d58' : '#db4437';
 
       let bairrosGridHTML = '';
       if (unit.kind === 'cras' && Array.isArray(unit.bairros_list)) {
@@ -353,7 +350,6 @@ function findUnitByCoords(lat, lng) {
 
 // ---------- 10. Trocar de Abas (Sistema de Menu Inferior) ----------
 function trocarAba(viewId) {
-  // Atualiza botões no menu inferior (tabbar)
   document.querySelectorAll('nav.tabbar button').forEach(btn => {
     if (btn.getAttribute('data-view') === viewId) {
       btn.classList.add('active');
@@ -362,7 +358,6 @@ function trocarAba(viewId) {
     }
   });
 
-  // Exibe a seção de visualização correspondente
   document.querySelectorAll('main .view').forEach(view => {
     if (view.id === `view-${viewId}`) {
       view.classList.add('active');
@@ -371,7 +366,6 @@ function trocarAba(viewId) {
     }
   });
 
-  // Atualiza mapa caso volte à tela dele para recalcular tamanho
   if (viewId === 'map' && map) {
     setTimeout(() => {
       map.invalidateSize();
@@ -387,7 +381,7 @@ function obterGeolocalizacao() {
   }
 
   const locBtn = document.getElementById('locBtn');
-  if (locBtn) locBtn.style.color = '#F2994A'; // Muda ícone para laranja durante busca
+  if (locBtn) locBtn.style.color = '#F2994A'; 
 
   navigator.geolocation.getCurrentPosition(
     (position) => {
@@ -396,10 +390,8 @@ function obterGeolocalizacao() {
 
       if (locBtn) locBtn.style.color = 'var(--deep-blue)';
 
-      // Centraliza no ponto do usuário
       map.setView([lat, lng], 15);
 
-      // Cria ou move o marcador azul do usuário
       if (userLocationMarker) {
         userLocationMarker.setLatLng([lat, lng]);
       } else {
@@ -432,15 +424,13 @@ function setupEventListeners() {
   const chipCreas = document.getElementById('chipCreas');
   const locBtn = document.getElementById('locBtn');
 
-  // Input de busca
+  // Input de busca (Executa a pesquisa a cada caractere digitado)
   if (searchInput) {
     searchInput.addEventListener('input', (e) => realizarBusca(e.target.value));
     
-    // Mostra sugestões se já houver algo válido digitado quando focar
+    // Força reavaliação ao clicar ou focar no campo
     searchInput.addEventListener('focus', (e) => {
-      if (e.target.value.trim().length >= 2) {
-        suggestBox.classList.add('show');
-      }
+      realizarBusca(e.target.value);
     });
   }
 
@@ -449,12 +439,14 @@ function setupEventListeners() {
     clearBtn.addEventListener('click', () => {
       searchInput.value = '';
       clearBtn.style.display = 'none';
-      suggestBox.classList.remove('show');
-      suggestBox.innerHTML = '';
+      if (suggestBox) {
+        suggestBox.classList.remove('show');
+        suggestBox.innerHTML = '';
+      }
     });
   }
 
-  // Ocultar sugestões clicando fora
+  // Ocultar sugestões clicando fora do campo de busca
   document.addEventListener('click', (e) => {
     if (suggestBox && searchInput && !searchInput.contains(e.target) && !suggestBox.contains(e.target)) {
       suggestBox.classList.remove('show');
@@ -483,7 +475,7 @@ function setupEventListeners() {
     locBtn.addEventListener('click', obterGeolocalizacao);
   }
 
-  // Cliques na Tabbar inferior para trocar visualizações
+  // Cliques na Tabbar inferior
   document.querySelectorAll('nav.tabbar button').forEach(button => {
     button.addEventListener('click', () => {
       const targetView = button.getAttribute('data-view');
@@ -494,7 +486,6 @@ function setupEventListeners() {
 
 // ---------- 13. Inicialização DOMContentLoaded ----------
 window.addEventListener('DOMContentLoaded', () => {
-  // Prepara índices de busca
   if (typeof UNITS !== 'undefined') {
     SEARCH_INDEX = buildSearchIndex();
     ALL_UNITS = [
@@ -502,16 +493,14 @@ window.addEventListener('DOMContentLoaded', () => {
       ...UNITS.creas.map(u => ({ ...u, kind: 'creas' }))
     ];
   } else {
-    console.error("Variável UNITS não declarada. Verifique se data.js está carregando corretamente antes do app.js.");
+    console.error("Variável UNITS não declarada. Verifique data.js.");
   }
 
-  // Inicia Mapa
   try {
     initMap();
   } catch (err) {
     console.error("Falha ao criar instância do mapa:", err);
   }
 
-  // Ativa os listeners da página
   setupEventListeners();
 });
