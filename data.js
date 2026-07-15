@@ -12,10 +12,10 @@ const UNITS = {
     },
     {
       "name": "CRAS Pintolândia",
-      "lat": 2.810678170811167, // Coordenada precisa atualizada
-      "lng": -60.7449722,        // Coordenada precisa atualizada
+      "lat": 2.8105851871073004, // Coordenada exata atualizada
+      "lng": -60.74498923145661,  // Coordenada exata atualizada
       "color": "blue",
-      "address": "R. Sólon Rodrigues Pessoa, 937 - Pintolândia", // Endereço de texto atualizado
+      "address": "R. Sólon Rodrigues Pessoa, 615 - Nova Canaã (Sede do FQA)", // Endereço físico atualizado
       "phone": "(95) 98407-3680",
       "bairros": "Dr. Silvio Botelho, Jardim Tropical, Pintolândia, Santa Luzia, Senador Hélio Campos",
       "bairros_list": ["Dr. Silvio Botelho", "Jardim Tropical", "Pintolândia", "Santa Luzia", "Senador Hélio Campos"]
