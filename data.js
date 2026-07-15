@@ -12,10 +12,10 @@ const UNITS = {
     },
     {
       "name": "CRAS Pintolândia",
-      "lat": 2.810710315764819, // Coordenada corrigida
-      "lng": -60.744403576171386, // Coordenada corrigida
+      "lat": 2.810678170811167, // Coordenada precisa atualizada
+      "lng": -60.7449722,        // Coordenada precisa atualizada
       "color": "blue",
-      "address": "R. Delman Veras, s/n - Pintolândia",
+      "address": "R. Sólon Rodrigues Pessoa, 937 - Pintolândia", // Endereço de texto atualizado
       "phone": "(95) 98407-3680",
       "bairros": "Dr. Silvio Botelho, Jardim Tropical, Pintolândia, Santa Luzia, Senador Hélio Campos",
       "bairros_list": ["Dr. Silvio Botelho", "Jardim Tropical", "Pintolândia", "Santa Luzia", "Senador Hélio Campos"]
