@@ -98,11 +98,11 @@ function buildSearchIndex() {
   return index;
 }
 
-// ---------- 4. Mecanismo de Busca Corrigido ----------
+// ---------- 4. Mecanismo de Busca (Sugestões em Tempo Real) ----------
 function realizarBusca(termoDigitado) {
   const suggestBox = document.getElementById('suggestBox');
   const clearBtn = document.getElementById('clearBtn');
-  
+   
   if (!suggestBox) return;
 
   const termoLimpo = normalizarTexto(termoDigitado);
@@ -181,6 +181,59 @@ function renderSugestoes(lista) {
   });
 
   suggestBox.classList.add('show');
+}
+
+// ---------- 5.1 Busca Direta (Apertar Enter / Filtrar e Ir) ----------
+function executarBuscaDireta(termoDigitado) {
+  const termoLimpo = normalizarTexto(termoDigitado);
+  if (termoLimpo.length < 2) return;
+
+  // Busca correspondências no índice global
+  const correspondencias = SEARCH_INDEX.filter(item => item.text.includes(termoLimpo));
+  
+  // Remove unidades duplicadas do filtro da busca para termos resultados únicos
+  const unidadesEncontradas = [];
+  const nomesAdicionados = new Set();
+
+  correspondencias.forEach(item => {
+    if (!nomesAdicionados.has(item.unit.name)) {
+      nomesAdicionados.add(item.unit.name);
+      unidadesEncontradas.push(item.unit);
+    }
+  });
+
+  if (unidadesEncontradas.length === 0) {
+    alert("Nenhum equipamento da rede SUAS foi encontrado para esta busca.");
+    return;
+  }
+
+  // Força a visualização ir para a aba do mapa se não estiver nela
+  trocarAba('map');
+
+  // Esconde o menu de sugestões
+  const suggestBox = document.getElementById('suggestBox');
+  if (suggestBox) {
+    suggestBox.classList.remove('show');
+  }
+
+  if (unidadesEncontradas.length === 1) {
+    // CASO 1: Apenas 1 equipamento encontrado -> Foca diretamente nele
+    focarUnidade(unidadesEncontradas[0]);
+  } else {
+    // CASO 2: Múltiplos equipamentos encontrados -> Ajusta o enquadramento do mapa para caber todos
+    const bounds = L.latLngBounds();
+    unidadesEncontradas.forEach(unit => {
+      bounds.extend([unit.lat, unit.lng]);
+    });
+
+    // Ajusta o mapa com um espaçamento confortável nas bordas (padding)
+    map.fitBounds(bounds, {
+      padding: [50, 50],
+      maxZoom: 15,
+      animate: true,
+      duration: 1.5
+    });
+  }
 }
 
 // ---------- 6. Focar e Abrir Popup no Mapa ----------
@@ -431,6 +484,13 @@ function setupEventListeners() {
     // Força reavaliação ao clicar ou focar no campo
     searchInput.addEventListener('focus', (e) => {
       realizarBusca(e.target.value);
+    });
+
+    // Detecta clique no botão "ENTER" para ir direto aos equipamentos
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        executarBuscaDireta(e.target.value);
+      }
     });
   }
 
