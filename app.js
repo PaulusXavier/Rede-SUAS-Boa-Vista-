@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE MAPA DE GEOLOCALIZAÇÃO - REDE SUAS BOA VISTA
- * Arquivo: app.js
+ * Arquivo: app.js (Versão Otimizada com Abertura Automática de Popup)
  */
 
 // ---------- Variáveis Globais ----------
@@ -33,7 +33,7 @@ function initMap() {
   updateMapAndList();
 }
 
-// ---------- 2. Normalização Avançada de Texto (Melhora muito a busca) ----------
+// ---------- 2. Normalização de Texto para Busca ----------
 function normalizarTexto(texto) {
   if (!texto) return '';
   return texto
@@ -41,12 +41,12 @@ function normalizarTexto(texto) {
     .toLowerCase()
     .normalize('NFD') 
     .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-    .replace(/[^a-z0-9\s]/g, '') // Remove pontuação e caracteres especiais
+    .replace(/[^a-z0-9\s]/g, '') // Remove pontuação
     .replace(/\s+/g, ' ') // Remove espaços duplicados
     .trim();
 }
 
-// ---------- 3. Construção do Índice de Busca Integrado ----------
+// ---------- 3. Construção do Índice de Busca ----------
 function buildSearchIndex() {
   const index = [];
 
@@ -98,7 +98,7 @@ function buildSearchIndex() {
   return index;
 }
 
-// ---------- 4. Mecanismo de Busca (Sugestões em Tempo Real) ----------
+// ---------- 4. Mecanismo de Sugestões em Tempo Real ----------
 function realizarBusca(termoDigitado) {
   const suggestBox = document.getElementById('suggestBox');
   const clearBtn = document.getElementById('clearBtn');
@@ -117,7 +117,6 @@ function realizarBusca(termoDigitado) {
     return;
   }
 
-  // Varre o índice por correspondência parcial
   const correspondencias = SEARCH_INDEX.filter(item => item.text.includes(termoLimpo));
 
   const resultadosUnicos = [];
@@ -139,7 +138,7 @@ function realizarBusca(termoDigitado) {
   renderSugestoes(resultadosUnicos.slice(0, 6));
 }
 
-// ---------- 5. Renderizando as Sugestões com Design Limpo ----------
+// ---------- 5. Renderizar Sugestões no Painel ----------
 function renderSugestoes(lista) {
   const suggestBox = document.getElementById('suggestBox');
   if (!suggestBox) return;
@@ -156,7 +155,6 @@ function renderSugestoes(lista) {
     const sitem = document.createElement('div');
     sitem.className = 'sitem';
 
-    // Cores fiéis aos equipamentos
     const corIndicador = item.type === 'cras' ? 'var(--jungle, #27ae60)' : 'var(--creas-red, #e74c3c)';
 
     sitem.innerHTML = `
@@ -183,15 +181,13 @@ function renderSugestoes(lista) {
   suggestBox.classList.add('show');
 }
 
-// ---------- 5.1 Busca Direta (Apertar Enter / Filtrar e Ir) ----------
+// ---------- 6. Executar Busca Direta ao Pressionar Enter ----------
 function executarBuscaDireta(termoDigitado) {
   const termoLimpo = normalizarTexto(termoDigitado);
   if (termoLimpo.length < 2) return;
 
-  // Busca correspondências no índice global
   const correspondencias = SEARCH_INDEX.filter(item => item.text.includes(termoLimpo));
   
-  // Remove unidades duplicadas do filtro da busca para termos resultados únicos
   const unidadesEncontradas = [];
   const nomesAdicionados = new Set();
 
@@ -207,57 +203,54 @@ function executarBuscaDireta(termoDigitado) {
     return;
   }
 
-  // Força a visualização ir para a aba do mapa se não estiver nela
   trocarAba('map');
 
-  // Esconde o menu de sugestões
   const suggestBox = document.getElementById('suggestBox');
   if (suggestBox) {
     suggestBox.classList.remove('show');
   }
 
   if (unidadesEncontradas.length === 1) {
-    // CASO 1: Apenas 1 equipamento encontrado -> Foca diretamente nele
+    // Foca diretamente no único equipamento encontrado e abre sua descrição
     focarUnidade(unidadesEncontradas[0]);
   } else {
-    // CASO 2: Múltiplos equipamentos encontrados -> Ajusta o enquadramento do mapa para caber todos
+    // Múltiplos resultados: Enquadra todos no campo de visão
     const bounds = L.latLngBounds();
     unidadesEncontradas.forEach(unit => {
       bounds.extend([unit.lat, unit.lng]);
     });
 
-    // Ajusta o mapa com um espaçamento confortável nas bordas (padding)
     map.fitBounds(bounds, {
       padding: [50, 50],
       maxZoom: 15,
       animate: true,
-      duration: 1.5
+      duration: 1.2
     });
   }
 }
 
-// ---------- 6. Focar e Abrir Popup no Mapa ----------
+// ---------- 7. Focar e Abrir Caixa de Descrição (Popup) ----------
 function focarUnidade(unit) {
   if (!map) return;
 
+  // Fecha qualquer outro popup aberto anteriormente
   map.closePopup();
 
+  // Move a câmera com suavidade
   map.flyTo([unit.lat, unit.lng], 16, {
     animate: true,
     duration: 1.2
   });
 
+  // Aguarda o fim do zoom (1.2s) para abrir a caixa de informações
   setTimeout(() => {
-    markersGroup.eachLayer(marker => {
-      const latLng = marker.getLatLng();
-      if (Math.abs(latLng.lat - unit.lat) < 0.0001 && Math.abs(latLng.lng - unit.lng) < 0.0001) {
-        marker.openPopup();
-      }
-    });
-  }, 1300);
+    if (unit.marker) {
+      unit.marker.openPopup();
+    }
+  }, 1250);
 }
 
-// ---------- 7. Renderizar Pins de Google Maps e Listagem ----------
+// ---------- 8. Atualizar Mapa e Lista de Cards ----------
 function updateMapAndList() {
   if (!markersGroup) return;
   markersGroup.clearLayers();
@@ -275,17 +268,12 @@ function updateMapAndList() {
   }
 
   unidadesParaMostrar.forEach(unit => {
-    // Cores idênticas aos pinos do Google Maps
-    const pinColor = unit.kind === 'cras' ? '#0f9d58' : '#db4437'; // Verde Google e Vermelho Google
+    const pinColor = unit.kind === 'cras' ? '#0f9d58' : '#db4437'; 
 
-    // HTML do pino no estilo Google Maps (gota invertida estilizada com ícone svg)
     const googlePinHTML = `
       <div class="google-maps-pin" style="position: relative; width: 34px; height: 44px; filter: drop-shadow(0px 3px 4px rgba(0,0,0,0.35));">
-        <!-- Parte triangular inferior -->
         <div style="position: absolute; bottom: 0; left: 12px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 10px solid ${pinColor};"></div>
-        <!-- Círculo principal -->
-        <div style="position: absolute; top: 0; left: 0; width: 34px; height: 34px; background-color: ${pinColor}; border-radius: 50% 50% 50% 50%; display: flex; align-items: center; justify-content: center;">
-          <!-- Ícone branco no meio (Home / Prédio Público) -->
+        <div style="position: absolute; top: 0; left: 0; width: 34px; height: 34px; background-color: ${pinColor}; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
             <polyline points="9 22 9 12 15 12 15 22"></polyline>
@@ -298,7 +286,7 @@ function updateMapAndList() {
       className: 'google-custom-marker',
       html: googlePinHTML,
       iconSize: [34, 44],
-      iconAnchor: [17, 44], // Fixa a ponta inferior da gota exatamente na coordenada geográfica
+      iconAnchor: [17, 44],
       popupAnchor: [0, -40]
     });
 
@@ -321,9 +309,12 @@ function updateMapAndList() {
       </div>
     `;
 
-    L.marker([unit.lat, unit.lng], { icon: customIcon })
+    // Cria o marcador e salva a referência dele diretamente no objeto 'unit'
+    const marker = L.marker([unit.lat, unit.lng], { icon: customIcon })
       .bindPopup(popupContent)
       .addTo(markersGroup);
+    
+    unit.marker = marker; 
 
     // Renderiza nos Cards da aba Unidades
     if (containerLista) {
@@ -373,7 +364,7 @@ function updateMapAndList() {
   });
 }
 
-// ---------- 8. Alternar Sanfona de Bairros nos Cards ----------
+// ---------- 9. Alternar Sanfona de Bairros nos Cards ----------
 window.alternarVisibilidadeBairros = function(elementoClicado) {
   const bairrosListDiv = elementoClicado.nextElementSibling;
   if (bairrosListDiv && bairrosListDiv.classList.contains('bairros-list')) {
@@ -382,7 +373,7 @@ window.alternarVisibilidadeBairros = function(elementoClicado) {
   }
 };
 
-// ---------- 9. Ver No Mapa (Ação do Card) ----------
+// ---------- 10. Ação "Ver no Mapa" no Card de Listagem ----------
 window.verNoMapa = function(lat, lng) {
   trocarAba('map');
   const unit = findUnitByCoords(lat, lng);
@@ -401,7 +392,7 @@ function findUnitByCoords(lat, lng) {
   return found;
 }
 
-// ---------- 10. Trocar de Abas (Sistema de Menu Inferior) ----------
+// ---------- 11. Alternar Visualizações (Abas) ----------
 function trocarAba(viewId) {
   document.querySelectorAll('nav.tabbar button').forEach(btn => {
     if (btn.getAttribute('data-view') === viewId) {
@@ -426,7 +417,7 @@ function trocarAba(viewId) {
   }
 }
 
-// ---------- 11. Geolocalização Real do Usuário ----------
+// ---------- 12. Localizar Usuário pelo GPS ----------
 function obterGeolocalizacao() {
   if (!navigator.geolocation) {
     alert("Geolocalização não é suportada por seu navegador.");
@@ -468,7 +459,7 @@ function obterGeolocalizacao() {
   );
 }
 
-// ---------- 12. Listeners e Eventos Gerais ----------
+// ---------- 13. Vinculação de Eventos do Usuário ----------
 function setupEventListeners() {
   const searchInput = document.getElementById('searchInput');
   const suggestBox = document.getElementById('suggestBox');
@@ -477,16 +468,13 @@ function setupEventListeners() {
   const chipCreas = document.getElementById('chipCreas');
   const locBtn = document.getElementById('locBtn');
 
-  // Input de busca (Executa a pesquisa a cada caractere digitado)
   if (searchInput) {
     searchInput.addEventListener('input', (e) => realizarBusca(e.target.value));
     
-    // Força reavaliação ao clicar ou focar no campo
     searchInput.addEventListener('focus', (e) => {
       realizarBusca(e.target.value);
     });
 
-    // Detecta clique no botão "ENTER" para ir direto aos equipamentos
     searchInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         executarBuscaDireta(e.target.value);
@@ -494,7 +482,6 @@ function setupEventListeners() {
     });
   }
 
-  // Botão Limpar Busca (✕)
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
       searchInput.value = '';
@@ -506,14 +493,12 @@ function setupEventListeners() {
     });
   }
 
-  // Ocultar sugestões clicando fora do campo de busca
   document.addEventListener('click', (e) => {
     if (suggestBox && searchInput && !searchInput.contains(e.target) && !suggestBox.contains(e.target)) {
       suggestBox.classList.remove('show');
     }
   });
 
-  // Filtros (Chips do Mapa)
   if (chipCras) {
     chipCras.addEventListener('click', () => {
       activeFilters.cras = !activeFilters.cras;
@@ -530,12 +515,10 @@ function setupEventListeners() {
     });
   }
 
-  // Botão Geolocalização
   if (locBtn) {
     locBtn.addEventListener('click', obterGeolocalizacao);
   }
 
-  // Cliques na Tabbar inferior
   document.querySelectorAll('nav.tabbar button').forEach(button => {
     button.addEventListener('click', () => {
       const targetView = button.getAttribute('data-view');
@@ -544,7 +527,7 @@ function setupEventListeners() {
   });
 }
 
-// ---------- 13. Inicialização DOMContentLoaded ----------
+// ---------- 14. Inicialização Principal ----------
 window.addEventListener('DOMContentLoaded', () => {
   if (typeof UNITS !== 'undefined') {
     SEARCH_INDEX = buildSearchIndex();
